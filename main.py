@@ -1,5 +1,6 @@
 import os
-from datetime import datetime, time, timedelta, timezone
+import xml.etree.ElementTree as ET
+from datetime import datetime, time, timedelta
 
 import aiohttp
 import discord
@@ -14,8 +15,7 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
-DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")  # 커밋 알림용 Discord 웹훅 URL
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 FINE_AMOUNT = int(os.getenv("FINE_AMOUNT", "1000"))
 MIN_COMMITS = 2
 KST = ZoneInfo("Asia/Seoul")
@@ -30,43 +30,42 @@ http_session: aiohttp.ClientSession = None
 
 async def get_commit_count(discord_id: str, github_username: str, date: str) -> int:
     repos = await db.get_repos(discord_id)
-    kst_start = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=KST)
-    utc_start = kst_start.astimezone(timezone.utc)
-    utc_end = (kst_start + timedelta(days=1)).astimezone(timezone.utc)
-    headers = {"Accept": "application/vnd.github.v3+json"}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    if not repos:
+        return 0
 
-    # 등록된 레포가 있으면 해당 레포들만, 없으면 전체 Events에서 집계
-    if repos:
-        count = 0
-        for repo in repos:
-            url = f"https://api.github.com/repos/{repo}/commits"
-            params = {
-                "author": github_username,
-                "since": utc_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "until": utc_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "per_page": 100,
-            }
-            async with http_session.get(url, params=params, headers=headers) as resp:
-                if resp.status == 200:
-                    count += len(await resp.json())
-        return count
-    else:
-        url = f"https://api.github.com/users/{github_username}/events"
-        count = 0
-        async with http_session.get(url, params={"per_page": 100}, headers=headers) as resp:
-            if resp.status != 200:
-                return 0
-            for event in await resp.json():
-                if event.get("type") != "PushEvent":
+    user_row = await db.get_user_by_discord(discord_id)
+    # author_name 없으면 github_username으로 fallback
+    author_name = (user_row[3] if user_row and user_row[3] else github_username)
+
+    kst_start = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=KST)
+    kst_end = kst_start + timedelta(days=1)
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    count = 0
+
+    for repo in repos:
+        for branch in ["main", "master"]:
+            url = f"https://github.com/{repo}/commits/{branch}.atom"
+            async with http_session.get(url) as resp:
+                if resp.status != 200:
                     continue
-                created_at = datetime.strptime(
-                    event["created_at"], "%Y-%m-%dT%H:%M:%SZ"
-                ).replace(tzinfo=timezone.utc)
-                if utc_start <= created_at < utc_end:
-                    count += len(event.get("payload", {}).get("commits", []))
-        return count
+                try:
+                    root = ET.fromstring(await resp.text())
+                except ET.ParseError:
+                    continue
+                for entry in root.findall("atom:entry", ns):
+                    author_el = entry.find("atom:author/atom:name", ns)
+                    if author_el is None or author_el.text != author_name:
+                        continue
+                    updated_el = entry.find("atom:updated", ns)
+                    if updated_el is None:
+                        continue
+                    commit_time = datetime.fromisoformat(
+                        updated_el.text.replace("Z", "+00:00")
+                    ).astimezone(KST)
+                    if kst_start <= commit_time < kst_end:
+                        count += 1
+                break  # 200 응답 받은 브랜치로 확정
+    return count
 
 
 @bot.event
@@ -93,7 +92,12 @@ def build_onboarding_embed() -> discord.Embed:
         inline=False,
     )
     embed.add_field(
-        name="2️⃣ 감시할 레포 등록 (여러 개 가능)",
+        name="2️⃣ git 이름 등록 (커밋 작성자 매칭)",
+        value="`!이름등록 <git user.name>`\n터미널에서 `git config user.name` 으로 확인\n예: `!이름등록 Kim Gahyun`",
+        inline=False,
+    )
+    embed.add_field(
+        name="3️⃣ 감시할 레포 등록 (여러 개 가능)",
         value="`!레포등록 owner/repo`\n예: `!레포등록 kimgahyun/CodingTest`",
         inline=False,
     )
@@ -105,7 +109,7 @@ def build_onboarding_embed() -> discord.Embed:
         if DISCORD_WEBHOOK_URL
         else "관리자에게 Discord 웹훅 URL을 받아서\nGitHub 레포 Settings → Webhooks에 등록하세요."
     )
-    embed.add_field(name="3️⃣ GitHub 레포에 Discord 웹훅 연결", value=webhook_guide, inline=False)
+    embed.add_field(name="4️⃣ GitHub 레포에 Discord 웹훅 연결", value=webhook_guide, inline=False)
     embed.add_field(name="📖 전체 명령어 보기", value="`!도움말`", inline=False)
     return embed
 
@@ -138,8 +142,8 @@ async def run_daily_check(today: str):
     fine_list = []
     safe_list = []
 
-    for discord_id, github_username, _ in users:
-        count = await get_commit_count(github_username, today)
+    for discord_id, github_username, *_ in users:
+        count = await get_commit_count(discord_id, github_username, today)
         if count < MIN_COMMITS:
             await db.add_fine(
                 discord_id, FINE_AMOUNT,
@@ -190,7 +194,7 @@ async def cmd_my_info(ctx):
     if not row:
         await ctx.reply("`!등록 <GitHub 아이디>`로 먼저 등록해주세요.")
         return
-    _, github_username, _ = row
+    _, github_username, *_ = row
     today = datetime.now(KST).strftime("%Y-%m-%d")
     count = await get_commit_count(str(ctx.author.id), github_username, today)
     total_fine = await db.get_total_fine(str(ctx.author.id))
@@ -210,7 +214,7 @@ async def cmd_today(ctx):
         return
     today = datetime.now(KST).strftime("%Y-%m-%d")
     rows = []
-    for discord_id, github_username, _ in users:
+    for discord_id, github_username, *_ in users:
         count = await get_commit_count(discord_id, github_username, today)
         icon = "✅" if count >= MIN_COMMITS else "❌"
         rows.append(f"{icon} <@{discord_id}> `{github_username}` — {count}개")
@@ -310,11 +314,21 @@ async def cmd_my_repos(ctx):
     await ctx.reply(embed=embed)
 
 
+@bot.command(name="이름등록")
+async def cmd_author_name(ctx, *, author_name: str = None):
+    if not author_name:
+        await ctx.reply("사용법: `!이름등록 <git 이름>`\n`git config user.name` 값을 입력해주세요.")
+        return
+    await db.update_author_name(str(ctx.author.id), author_name)
+    await ctx.reply(f"✅ git 이름 `{author_name}` 으로 등록됐습니다. 커밋 집계에 이 이름이 사용됩니다.")
+
+
 @bot.command(name="도움말")
 async def cmd_help(ctx):
     embed = discord.Embed(title="📖 명령어 도움말", color=0x845EF7)
     cmds = [
         ("!등록 <GitHub ID>", "내 GitHub 계정 등록"),
+        ("!이름등록 <git 이름>", "git user.name 등록 (커밋 작성자 매칭용)"),
         ("!레포등록 owner/repo", "집계할 레포 추가 (여러 개 가능)"),
         ("!레포삭제 owner/repo", "등록된 레포 제거"),
         ("!내레포", "내가 등록한 레포 목록"),
@@ -361,6 +375,15 @@ async def slash_register(interaction: discord.Interaction, github_username: str)
     await interaction.response.send_message(embed=embed)
 
 
+@bot.tree.command(name="이름등록", description="git user.name을 등록합니다 (커밋 작성자 매칭에 사용)")
+@app_commands.describe(author_name="git config user.name 값")
+async def slash_author_name(interaction: discord.Interaction, author_name: str):
+    await db.update_author_name(str(interaction.user.id), author_name)
+    await interaction.response.send_message(
+        f"✅ git 이름 `{author_name}` 으로 등록됐습니다. 커밋 집계에 이 이름이 사용됩니다."
+    )
+
+
 @bot.tree.command(name="레포등록", description="커밋을 집계할 GitHub 레포를 등록합니다")
 @app_commands.describe(repo="레포 경로 (예: kimgahyun/CodingTest)")
 async def slash_add_repo(interaction: discord.Interaction, repo: str):
@@ -405,7 +428,7 @@ async def slash_my_info(interaction: discord.Interaction):
     if not row:
         await interaction.response.send_message("`/등록 <GitHub 아이디>`로 먼저 등록해주세요.", ephemeral=True)
         return
-    _, github_username, _ = row
+    _, github_username, *_ = row
     today = datetime.now(KST).strftime("%Y-%m-%d")
     await interaction.response.defer()
     count = await get_commit_count(str(interaction.user.id), github_username, today)
@@ -427,7 +450,7 @@ async def slash_today(interaction: discord.Interaction):
     today = datetime.now(KST).strftime("%Y-%m-%d")
     await interaction.response.defer()
     rows = []
-    for discord_id, github_username, _ in users:
+    for discord_id, github_username, *_ in users:
         count = await get_commit_count(discord_id, github_username, today)
         icon = "✅" if count >= MIN_COMMITS else "❌"
         rows.append(f"{icon} <@{discord_id}> `{github_username}` — {count}개")
