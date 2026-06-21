@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/interactions.py": {
+      "maxDuration": 30
+    }
+  }
+}
