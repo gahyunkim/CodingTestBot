@@ -11,9 +11,15 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 discord_id      TEXT PRIMARY KEY,
                 github_username TEXT NOT NULL,
-                discord_name    TEXT
+                discord_name    TEXT,
+                author_name     TEXT
             )
         """)
+        # 기존 DB에 author_name 컬럼이 없으면 추가
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN author_name TEXT")
+        except Exception:
+            pass
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS user_repos (
                 discord_id TEXT NOT NULL,
@@ -34,22 +40,32 @@ async def init_db():
         await conn.commit()
 
 
-async def register_user(discord_id: str, github_username: str, discord_name: str):
+async def register_user(discord_id: str, github_username: str, discord_name: str, author_name: str = ""):
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.execute("""
-            INSERT INTO users (discord_id, github_username, discord_name)
-            VALUES (?, ?, ?)
+            INSERT INTO users (discord_id, github_username, discord_name, author_name)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(discord_id) DO UPDATE SET
                 github_username = excluded.github_username,
-                discord_name    = excluded.discord_name
-        """, (discord_id, github_username, discord_name))
+                discord_name    = excluded.discord_name,
+                author_name     = CASE WHEN excluded.author_name != '' THEN excluded.author_name ELSE author_name END
+        """, (discord_id, github_username, discord_name, author_name))
+        await conn.commit()
+
+
+async def update_author_name(discord_id: str, author_name: str):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            "UPDATE users SET author_name = ? WHERE discord_id = ?",
+            (author_name, discord_id)
+        )
         await conn.commit()
 
 
 async def get_user_by_discord(discord_id: str):
     async with aiosqlite.connect(DB_PATH) as conn:
         async with conn.execute(
-            "SELECT discord_id, github_username, discord_name FROM users WHERE discord_id = ?",
+            "SELECT discord_id, github_username, discord_name, author_name FROM users WHERE discord_id = ?",
             (discord_id,)
         ) as cur:
             return await cur.fetchone()
@@ -58,7 +74,7 @@ async def get_user_by_discord(discord_id: str):
 async def get_all_users():
     async with aiosqlite.connect(DB_PATH) as conn:
         async with conn.execute(
-            "SELECT discord_id, github_username, discord_name FROM users"
+            "SELECT discord_id, github_username, discord_name, author_name FROM users"
         ) as cur:
             return await cur.fetchall()
 
