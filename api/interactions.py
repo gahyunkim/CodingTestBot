@@ -38,7 +38,7 @@ def verify_signature() -> bool:
             ts.encode() + request.data, bytes.fromhex(sig)
         )
         return True
-    except BadSignatureError:
+    except Exception:
         return False
 
 
