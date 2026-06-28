@@ -29,7 +29,8 @@ def run() -> None:
         print("등록된 사용자 없음, 종료")
         return
 
-    results = gh.check_all_users(users, db.get_repos, today)
+    user_tokens = db.get_user_tokens()
+    results = gh.check_all_users(users, db.get_repos, today, user_tokens=user_tokens)
     short_list = [(did, gh_name, cnt) for did, gh_name, cnt in results if cnt < gh.MIN_COMMITS]
 
     if not short_list:

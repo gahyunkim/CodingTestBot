@@ -49,6 +49,15 @@ COMMANDS = [
     {"name": "내벌금", "description": "내 벌금 날짜별 내역을 확인합니다", "type": 1},
     {"name": "주간통계", "description": "이번 주 미달 현황과 벌금 합계를 봅니다", "type": 1},
     {
+        "name": "토큰등록",
+        "description": "GitHub PAT를 등록해 private 레포 커밋을 집계합니다",
+        "type": 1,
+        "options": [
+            {"name": "token", "description": "GitHub Personal Access Token (Contents: Read)", "type": 3, "required": True},
+        ],
+    },
+    {"name": "토큰삭제", "description": "등록된 GitHub 토큰을 삭제합니다", "type": 1},
+    {
         "name": "벌금납부",
         "description": "벌금 납부 처리 (관리자 전용)",
         "type": 1,

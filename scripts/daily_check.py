@@ -27,7 +27,8 @@ def run(date: str) -> None:
         print("등록된 사용자 없음, 종료")
         return
 
-    results = gh.check_all_users(users, db.get_repos, date)
+    user_tokens = db.get_user_tokens()
+    results = gh.check_all_users(users, db.get_repos, date, user_tokens=user_tokens)
 
     fine_list, safe_list = [], []
     for discord_id, github_username, count in results:

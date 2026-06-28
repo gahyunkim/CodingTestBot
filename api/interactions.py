@@ -126,6 +126,8 @@ def handle_command(interaction: dict) -> dict:
         "강제집계": cmd_강제집계,
         "내벌금": cmd_내벌금,
         "주간통계": cmd_주간통계,
+        "토큰등록": cmd_토큰등록,
+        "토큰삭제": cmd_토큰삭제,
         "도움말": cmd_도움말,
     }
     handler = handlers.get(name)
@@ -211,7 +213,8 @@ def cmd_내정보(interaction: dict) -> dict:
     github_username = row["github_username"]
     today = datetime.now(KST).strftime("%Y-%m-%d")
     repos = db.get_repos(user_id)
-    count = gh.get_commit_count(repos, github_username, today)
+    user_token = row.get("github_token")
+    count = gh.get_commit_count(repos, github_username, today, user_token=user_token)
     total_fine = db.get_total_fine(user_id)
     status = "✅ 달성" if count >= gh.MIN_COMMITS else f"❌ {gh.MIN_COMMITS - count}개 부족"
 
@@ -232,7 +235,8 @@ def cmd_오늘현황(interaction: dict) -> dict:
         return respond([embed("📅 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
 
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    results = gh.check_all_users(users, db.get_repos, today)
+    user_tokens = db.get_user_tokens()
+    results = gh.check_all_users(users, db.get_repos, today, user_tokens=user_tokens)
     results.sort(key=lambda x: x[2], reverse=True)
 
     rows = [
@@ -283,7 +287,8 @@ def cmd_강제집계(interaction: dict) -> dict:
     if not users:
         return respond([embed("ℹ️ 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
 
-    results = gh.check_all_users(users, db.get_repos, date)
+    user_tokens = db.get_user_tokens()
+    results = gh.check_all_users(users, db.get_repos, date, user_tokens=user_tokens)
 
     fine_list, safe_list = [], []
     for discord_id, github_username, count in results:
@@ -364,6 +369,43 @@ def cmd_주간통계(interaction: dict) -> dict:
     )])
 
 
+def cmd_토큰등록(interaction: dict) -> dict:
+    user_id, _ = user_info(interaction)
+    if not db.get_user_by_discord(user_id):
+        return respond([embed("❌ 미등록", "`/등록` 으로 먼저 GitHub 계정을 등록해주세요.", color=0xFF6B6B)], ephemeral=True)
+
+    token = opt(interaction, "token", "")
+    try:
+        resp = requests.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
+            timeout=8,
+        )
+    except Exception:
+        return respond([embed("❌ GitHub 연결 실패", "잠시 후 다시 시도해주세요.", color=0xFF6B6B)], ephemeral=True)
+
+    if resp.status_code != 200:
+        return respond([embed("❌ 유효하지 않은 토큰", "GitHub PAT를 다시 확인해주세요.\n토큰이 만료됐거나 권한이 없을 수 있습니다.", color=0xFF6B6B)], ephemeral=True)
+
+    github_login = resp.json().get("login", "")
+    db.set_github_token(user_id, token)
+    return respond([embed(
+        "✅ 토큰 등록 완료",
+        f"GitHub `{github_login}` 계정 토큰이 저장됐습니다.\nPrivate 레포 커밋도 집계됩니다.",
+        color=0x51CF66,
+    )], ephemeral=True)
+
+
+def cmd_토큰삭제(interaction: dict) -> dict:
+    user_id, _ = user_info(interaction)
+    db.clear_github_token(user_id)
+    return respond([embed(
+        "🗑️ 토큰 삭제 완료",
+        "저장된 GitHub 토큰이 삭제됐습니다.\nPrivate 레포는 더 이상 집계되지 않습니다.",
+        color=0xFFD43B,
+    )], ephemeral=True)
+
+
 def cmd_도움말(interaction: dict) -> dict:
     cmds = [
         ("/등록 <GitHub ID>", "내 GitHub 계정 등록"),
@@ -375,6 +417,8 @@ def cmd_도움말(interaction: dict) -> dict:
         ("/벌금", "전체 미납 벌금 현황"),
         ("/내벌금", "내 벌금 날짜별 내역"),
         ("/주간통계", "이번 주 미달 현황 & 벌금 합계"),
+        ("/토큰등록 <token>", "내 GitHub PAT 등록 (private 레포용)"),
+        ("/토큰삭제", "등록된 GitHub 토큰 삭제"),
         ("/벌금납부 @유저", "벌금 납부 처리 (관리자)"),
         ("/강제집계 [날짜]", "수동 일일 결산 (관리자)"),
     ]

@@ -98,3 +98,17 @@ def get_weekly_fines(week_start: str) -> list[dict]:
         .execute()
     )
     return res.data or []
+
+
+def set_github_token(discord_id: str, token: str) -> None:
+    _db().table("users").update({"github_token": token}).eq("discord_id", discord_id).execute()
+
+
+def clear_github_token(discord_id: str) -> None:
+    _db().table("users").update({"github_token": None}).eq("discord_id", discord_id).execute()
+
+
+def get_user_tokens() -> dict[str, str | None]:
+    """전체 유저의 {discord_id: github_token} 반환."""
+    res = _db().table("users").select("discord_id, github_token").execute()
+    return {r["discord_id"]: r.get("github_token") for r in (res.data or [])}
