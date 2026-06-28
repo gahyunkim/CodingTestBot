@@ -1,0 +1,34 @@
+name: Daily Commit Check
+
+on:
+  schedule:
+    - cron: '59 14 * * *'  # 23:59 KST (UTC+9) = 14:59 UTC
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '집계 날짜 (YYYY-MM-DD, 기본값: 오늘 KST)'
+        required: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 일일 커밋 집계 실행
+        run: python scripts/daily_check.py ${{ github.event.inputs.date }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          FINE_AMOUNT: ${{ secrets.FINE_AMOUNT }}
