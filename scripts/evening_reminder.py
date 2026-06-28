@@ -31,23 +31,31 @@ def run() -> None:
 
     user_tokens = db.get_user_tokens()
     results = gh.check_all_users(users, db.get_repos, today, user_tokens=user_tokens)
+    results.sort(key=lambda x: x[2], reverse=True)
+
     short_list = [(did, gh_name, cnt) for did, gh_name, cnt in results if cnt < gh.MIN_COMMITS]
+    done_list  = [(did, gh_name, cnt) for did, gh_name, cnt in results if cnt >= gh.MIN_COMMITS]
 
-    if not short_list:
-        print("모든 멤버 목표 달성, 알림 불필요")
-        return
+    rows = []
+    if short_list:
+        mentions = " ".join(f"<@{did}>" for did, _, _ in short_list)
+        rows.append(f"**{mentions}** 아직 목표 미달이에요! 자정까지 2시간 남았습니다.\n")
+        for did, gh_name, cnt in short_list:
+            rows.append(f"❌ <@{did}> `{gh_name}` — {cnt}/{gh.MIN_COMMITS}개")
+    else:
+        rows.append("🎉 오늘은 모든 멤버가 목표를 달성했어요!")
 
-    mentions = " ".join(f"<@{did}>" for did, _, _ in short_list)
-    rows = "\n".join(
-        f"• <@{did}> `{gh_name}` — {cnt}/{gh.MIN_COMMITS}개"
-        for did, gh_name, cnt in short_list
-    )
+    if done_list:
+        rows.append("")
+        for did, gh_name, cnt in done_list:
+            rows.append(f"✅ <@{did}> `{gh_name}` — {cnt}개")
 
+    color = 0xFF9500 if short_list else 0x51CF66
     embed = {
-        "title": "⏰ 저녁 커밋 리마인더",
-        "description": f"{mentions}\n\n아직 오늘 목표를 달성하지 못했어요!\n\n{rows}",
-        "color": 0xFF9500,
-        "footer": {"text": f"자정까지 약 3시간 남았습니다 ({today})"},
+        "title": "⏰ 22:00 커밋 현황",
+        "description": "\n".join(rows),
+        "color": color,
+        "footer": {"text": f"자정 집계까지 2시간 남았습니다 ({today})"},
     }
 
     resp = requests.post(
@@ -57,7 +65,7 @@ def run() -> None:
         timeout=10,
     )
     resp.raise_for_status()
-    print(f"리마인더 전송 완료 — {len(short_list)}명 대상")
+    print(f"리마인더 전송 완료 — 미달 {len(short_list)}명 / 달성 {len(done_list)}명")
 
 
 if __name__ == "__main__":
