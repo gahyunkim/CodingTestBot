@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
+import threading
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -67,6 +68,26 @@ def followup(token: str, embeds: list[dict]) -> None:
         json={"embeds": embeds},
         timeout=10,
     )
+
+
+def deferred(interaction: dict, fn, ephemeral: bool = False) -> dict:
+    """즉시 '처리 중' 응답 반환 후, fn()을 백그라운드 스레드에서 실행해 결과를 업데이트."""
+    token = interaction["token"]
+
+    def worker():
+        try:
+            result = fn()
+            patch_data = {k: v for k, v in result.get("data", {}).items() if k != "flags"}
+        except Exception as e:
+            patch_data = {"content": f"오류가 발생했습니다: {e}"}
+        requests.patch(
+            f"https://discord.com/api/v10/webhooks/{DISCORD_APPLICATION_ID}/{token}/messages/@original",
+            json=patch_data,
+            timeout=15,
+        )
+
+    threading.Thread(target=worker, daemon=False).start()
+    return {"type": 5, "data": {"flags": 64} if ephemeral else {}}
 
 
 # ── 사용자 정보 추출 ──────────────────────────────────────────────
@@ -206,48 +227,47 @@ def cmd_내레포(interaction: dict) -> dict:
 
 def cmd_내정보(interaction: dict) -> dict:
     user_id, display_name = user_info(interaction)
-    row = db.get_user_by_discord(user_id)
-    if not row:
-        return respond([embed("❌ 미등록", "`/등록 <GitHub 아이디>`로 먼저 등록해주세요.", color=0xFF6B6B)], ephemeral=True)
 
-    github_username = row["github_username"]
-    today = datetime.now(KST).strftime("%Y-%m-%d")
-    repos = db.get_repos(user_id)
-    user_token = row.get("github_token")
-    count = gh.get_commit_count(repos, github_username, today, user_token=user_token)
-    total_fine = db.get_total_fine(user_id)
-    status = "✅ 달성" if count >= gh.MIN_COMMITS else f"❌ {gh.MIN_COMMITS - count}개 부족"
+    def _run():
+        row = db.get_user_by_discord(user_id)
+        if not row:
+            return respond([embed("❌ 미등록", "`/등록 <GitHub 아이디>`로 먼저 등록해주세요.", color=0xFF6B6B)], ephemeral=True)
+        github_username = row["github_username"]
+        today = datetime.now(KST).strftime("%Y-%m-%d")
+        repos = db.get_repos(user_id)
+        user_token = row.get("github_token")
+        count = gh.get_commit_count(repos, github_username, today, user_token=user_token)
+        total_fine = db.get_total_fine(user_id)
+        status = "✅ 달성" if count >= gh.MIN_COMMITS else f"❌ {gh.MIN_COMMITS - count}개 부족"
+        return respond([embed(
+            f"👤 {display_name}",
+            color=0x339AF0,
+            fields=[
+                {"name": "GitHub", "value": f"`{github_username}`", "inline": True},
+                {"name": f"오늘 커밋 ({today})", "value": f"{count}개  {status}", "inline": True},
+                {"name": "미납 벌금", "value": f"{total_fine:,}원", "inline": True},
+            ],
+        )])
 
-    return respond([embed(
-        f"👤 {display_name}",
-        color=0x339AF0,
-        fields=[
-            {"name": "GitHub", "value": f"`{github_username}`", "inline": True},
-            {"name": f"오늘 커밋 ({today})", "value": f"{count}개  {status}", "inline": True},
-            {"name": "미납 벌금", "value": f"{total_fine:,}원", "inline": True},
-        ],
-    )])
+    return deferred(interaction, _run, ephemeral=True)
 
 
 def cmd_오늘현황(interaction: dict) -> dict:
-    users = db.get_all_users()
-    if not users:
-        return respond([embed("📅 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
+    def _run():
+        users = db.get_all_users()
+        if not users:
+            return respond([embed("📅 등록된 사용자 없음", color=0xFF6B6B)])
+        today = datetime.now(KST).strftime("%Y-%m-%d")
+        user_tokens = db.get_user_tokens()
+        results = gh.check_all_users(users, db.get_repos, today, user_tokens=user_tokens)
+        results.sort(key=lambda x: x[2], reverse=True)
+        rows = [
+            f"{'✅' if cnt >= gh.MIN_COMMITS else '❌'} <@{did}> `{gh_name}` — {cnt}개"
+            for did, gh_name, cnt in results
+        ]
+        return respond([embed(f"📅 {today} 커밋 현황", "\n".join(rows), color=0x339AF0)])
 
-    today = datetime.now(KST).strftime("%Y-%m-%d")
-    user_tokens = db.get_user_tokens()
-    results = gh.check_all_users(users, db.get_repos, today, user_tokens=user_tokens)
-    results.sort(key=lambda x: x[2], reverse=True)
-
-    rows = [
-        f"{'✅' if cnt >= gh.MIN_COMMITS else '❌'} <@{did}> `{gh_name}` — {cnt}개"
-        for did, gh_name, cnt in results
-    ]
-    return respond([embed(
-        f"📅 {today} 커밋 현황",
-        "\n".join(rows),
-        color=0x339AF0,
-    )])
+    return deferred(interaction, _run)
 
 
 def cmd_벌금(interaction: dict) -> dict:
@@ -283,28 +303,26 @@ def cmd_강제집계(interaction: dict) -> dict:
         return respond([embed("❌ 관리자 권한 필요", color=0xFF6B6B)], ephemeral=True)
 
     date = opt(interaction, "date") or datetime.now(KST).strftime("%Y-%m-%d")
-    users = db.get_all_users()
-    if not users:
-        return respond([embed("ℹ️ 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
 
-    user_tokens = db.get_user_tokens()
-    results = gh.check_all_users(users, db.get_repos, date, user_tokens=user_tokens)
+    def _run():
+        users = db.get_all_users()
+        if not users:
+            return respond([embed("ℹ️ 등록된 사용자 없음", color=0xFF6B6B)])
+        user_tokens = db.get_user_tokens()
+        results = gh.check_all_users(users, db.get_repos, date, user_tokens=user_tokens)
+        fine_list, safe_list = [], []
+        for discord_id, github_username, count in results:
+            if count < gh.MIN_COMMITS:
+                db.add_fine(discord_id, FINE_AMOUNT, f"{date} 커밋 {count}개 ({gh.MIN_COMMITS}개 미달)", date)
+                fine_list.append((discord_id, github_username, count))
+            else:
+                safe_list.append((discord_id, github_username, count))
+        result_embed = _build_daily_embed(date, fine_list, safe_list)
+        if DISCORD_WEBHOOK_URL:
+            requests.post(DISCORD_WEBHOOK_URL, json={"embeds": [result_embed]}, timeout=10)
+        return respond([embed("✅ 강제 집계 완료", f"`{date}` 결산이 완료됐습니다. 채널을 확인하세요.", color=0x51CF66)])
 
-    fine_list, safe_list = [], []
-    for discord_id, github_username, count in results:
-        if count < gh.MIN_COMMITS:
-            db.add_fine(discord_id, FINE_AMOUNT, f"{date} 커밋 {count}개 ({gh.MIN_COMMITS}개 미달)", date)
-            fine_list.append((discord_id, github_username, count))
-        else:
-            safe_list.append((discord_id, github_username, count))
-
-    result_embed = _build_daily_embed(date, fine_list, safe_list)
-
-    if DISCORD_WEBHOOK_URL:
-        followup_data = json.dumps({"embeds": [result_embed]})
-        requests.post(DISCORD_WEBHOOK_URL, data=followup_data, headers={"Content-Type": "application/json"}, timeout=10)
-
-    return respond([embed("✅ 강제 집계 완료", f"`{date}` 결산이 완료됐습니다. 채널을 확인하세요.", color=0x51CF66)])
+    return deferred(interaction, _run, ephemeral=True)
 
 
 def cmd_내벌금(interaction: dict) -> dict:
@@ -371,29 +389,30 @@ def cmd_주간통계(interaction: dict) -> dict:
 
 def cmd_토큰등록(interaction: dict) -> dict:
     user_id, _ = user_info(interaction)
-    if not db.get_user_by_discord(user_id):
-        return respond([embed("❌ 미등록", "`/등록` 으로 먼저 GitHub 계정을 등록해주세요.", color=0xFF6B6B)], ephemeral=True)
-
     token = opt(interaction, "token", "")
-    try:
-        resp = requests.get(
-            "https://api.github.com/user",
-            headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
-            timeout=8,
-        )
-    except Exception:
-        return respond([embed("❌ GitHub 연결 실패", "잠시 후 다시 시도해주세요.", color=0xFF6B6B)], ephemeral=True)
 
-    if resp.status_code != 200:
-        return respond([embed("❌ 유효하지 않은 토큰", "GitHub PAT를 다시 확인해주세요.\n토큰이 만료됐거나 권한이 없을 수 있습니다.", color=0xFF6B6B)], ephemeral=True)
+    def _run():
+        if not db.get_user_by_discord(user_id):
+            return respond([embed("❌ 미등록", "`/등록` 으로 먼저 GitHub 계정을 등록해주세요.", color=0xFF6B6B)], ephemeral=True)
+        try:
+            resp = requests.get(
+                "https://api.github.com/user",
+                headers={"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"},
+                timeout=8,
+            )
+        except Exception:
+            return respond([embed("❌ GitHub 연결 실패", "잠시 후 다시 시도해주세요.", color=0xFF6B6B)], ephemeral=True)
+        if resp.status_code != 200:
+            return respond([embed("❌ 유효하지 않은 토큰", "GitHub PAT를 다시 확인해주세요.", color=0xFF6B6B)], ephemeral=True)
+        github_login = resp.json().get("login", "")
+        db.set_github_token(user_id, token)
+        return respond([embed(
+            "✅ 토큰 등록 완료",
+            f"GitHub `{github_login}` 계정 토큰이 저장됐습니다.\nPrivate 레포 커밋도 집계됩니다.",
+            color=0x51CF66,
+        )], ephemeral=True)
 
-    github_login = resp.json().get("login", "")
-    db.set_github_token(user_id, token)
-    return respond([embed(
-        "✅ 토큰 등록 완료",
-        f"GitHub `{github_login}` 계정 토큰이 저장됐습니다.\nPrivate 레포 커밋도 집계됩니다.",
-        color=0x51CF66,
-    )], ephemeral=True)
+    return deferred(interaction, _run, ephemeral=True)
 
 
 def cmd_토큰삭제(interaction: dict) -> dict:
