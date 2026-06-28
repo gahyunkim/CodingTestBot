@@ -76,3 +76,25 @@ def get_repos(discord_id: str) -> list[str]:
 
 def pay_fines(discord_id: str) -> None:
     _db().table("fines").update({"paid": True}).eq("discord_id", discord_id).eq("paid", False).execute()
+
+
+def get_fine_history(discord_id: str, limit: int = 20) -> list[dict]:
+    res = (
+        _db().table("fines")
+        .select("amount, reason, date, paid")
+        .eq("discord_id", discord_id)
+        .order("date", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []
+
+
+def get_weekly_fines(week_start: str) -> list[dict]:
+    res = (
+        _db().table("fines")
+        .select("discord_id, amount, date, paid")
+        .gte("date", week_start)
+        .execute()
+    )
+    return res.data or []

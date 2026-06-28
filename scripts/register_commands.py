@@ -46,6 +46,8 @@ COMMANDS = [
     {"name": "내정보", "description": "나의 오늘 커밋 수와 벌금을 확인합니다", "type": 1},
     {"name": "오늘현황", "description": "전체 멤버의 오늘 커밋 현황을 봅니다", "type": 1},
     {"name": "벌금", "description": "전체 미납 벌금 현황을 봅니다", "type": 1},
+    {"name": "내벌금", "description": "내 벌금 날짜별 내역을 확인합니다", "type": 1},
+    {"name": "주간통계", "description": "이번 주 미달 현황과 벌금 합계를 봅니다", "type": 1},
     {
         "name": "벌금납부",
         "description": "벌금 납부 처리 (관리자 전용)",

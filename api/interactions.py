@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -124,6 +124,8 @@ def handle_command(interaction: dict) -> dict:
         "벌금": cmd_벌금,
         "벌금납부": cmd_벌금납부,
         "강제집계": cmd_강제집계,
+        "내벌금": cmd_내벌금,
+        "주간통계": cmd_주간통계,
         "도움말": cmd_도움말,
     }
     handler = handlers.get(name)
@@ -300,6 +302,68 @@ def cmd_강제집계(interaction: dict) -> dict:
     return respond([embed("✅ 강제 집계 완료", f"`{date}` 결산이 완료됐습니다. 채널을 확인하세요.", color=0x51CF66)])
 
 
+def cmd_내벌금(interaction: dict) -> dict:
+    user_id, display_name = user_info(interaction)
+    history = db.get_fine_history(user_id)
+    if not history:
+        return respond([embed("📋 벌금 내역 없음", "아직 부과된 벌금이 없습니다.", color=0x51CF66)], ephemeral=True)
+
+    total_unpaid = sum(r["amount"] for r in history if not r["paid"])
+    total_all = sum(r["amount"] for r in history)
+    rows = [
+        f"`{r['date']}` {'✅' if r['paid'] else '❌'} **{r['amount']:,}원**"
+        for r in history
+    ]
+    desc = "\n".join(rows)
+    if len(desc) > 3900:
+        desc = desc[:3900] + "\n…"
+
+    return respond([embed(
+        f"📋 {display_name}의 벌금 내역",
+        desc,
+        color=0xFFD43B,
+        fields=[
+            {"name": "미납 합계", "value": f"{total_unpaid:,}원", "inline": True},
+            {"name": "총 누적", "value": f"{total_all:,}원", "inline": True},
+        ],
+    )], ephemeral=True)
+
+
+def cmd_주간통계(interaction: dict) -> dict:
+    now = datetime.now(KST)
+    monday = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+    today = now.strftime("%Y-%m-%d")
+
+    users = db.get_all_users()
+    if not users:
+        return respond([embed("📊 주간 통계", "등록된 사용자가 없습니다.", color=0xFF6B6B)])
+
+    weekly = db.get_weekly_fines(monday)
+    missed_days: dict[str, int] = {}
+    week_amount: dict[str, int] = {}
+    for f in weekly:
+        did = f["discord_id"]
+        missed_days[did] = missed_days.get(did, 0) + 1
+        week_amount[did] = week_amount.get(did, 0) + f["amount"]
+
+    rows = []
+    for discord_id, _, _ in users:
+        missed = missed_days.get(discord_id, 0)
+        amount = week_amount.get(discord_id, 0)
+        if missed == 0:
+            rows.append(f"✅ <@{discord_id}> — 이번 주 미달 없음")
+        else:
+            rows.append(f"❌ <@{discord_id}> — {missed}일 미달 / {amount:,}원")
+
+    total = sum(week_amount.values())
+    return respond([embed(
+        f"📊 이번 주 통계 ({monday} ~ {today})",
+        "\n".join(rows),
+        color=0x339AF0,
+        fields=[{"name": "이번 주 총 벌금", "value": f"{total:,}원", "inline": False}],
+    )])
+
+
 def cmd_도움말(interaction: dict) -> dict:
     cmds = [
         ("/등록 <GitHub ID>", "내 GitHub 계정 등록"),
@@ -309,6 +373,8 @@ def cmd_도움말(interaction: dict) -> dict:
         ("/내정보", "오늘 커밋 수 & 벌금 확인"),
         ("/오늘현황", "전체 멤버 오늘 커밋 현황"),
         ("/벌금", "전체 미납 벌금 현황"),
+        ("/내벌금", "내 벌금 날짜별 내역"),
+        ("/주간통계", "이번 주 미달 현황 & 벌금 합계"),
         ("/벌금납부 @유저", "벌금 납부 처리 (관리자)"),
         ("/강제집계 [날짜]", "수동 일일 결산 (관리자)"),
     ]
