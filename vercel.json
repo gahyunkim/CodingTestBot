@@ -1,7 +1,15 @@
 {
-  "functions": {
-    "api/interactions.py": {
-      "maxDuration": 30
+  "builds": [
+    {
+      "src": "api/interactions.py",
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "15mb" }
     }
-  }
+  ],
+  "routes": [
+    {
+      "src": "/api/interactions",
+      "dest": "api/interactions.py"
+    }
+  ]
 }
