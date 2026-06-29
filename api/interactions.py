@@ -22,7 +22,7 @@ app = Flask(__name__)
 
 DISCORD_PUBLIC_KEY = os.environ["DISCORD_PUBLIC_KEY"]
 DISCORD_APPLICATION_ID = os.environ["DISCORD_APPLICATION_ID"]
-DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
 FINE_AMOUNT = int(os.environ.get("FINE_AMOUNT", "1000"))
 KST = ZoneInfo("Asia/Seoul")
 

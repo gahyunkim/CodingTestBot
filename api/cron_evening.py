@@ -17,7 +17,7 @@ import github_api as gh
 
 load_dotenv()
 
-DISCORD_WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
+DISCORD_WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"].strip()
 KST = ZoneInfo("Asia/Seoul")
 
 app = Flask(__name__)
