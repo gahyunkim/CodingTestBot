@@ -4,12 +4,23 @@
       "src": "api/interactions.py",
       "use": "@vercel/python",
       "config": { "maxLambdaSize": "15mb" }
+    },
+    {
+      "src": "api/cron_evening.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/cron_daily.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
-    {
-      "src": "/api/interactions",
-      "dest": "api/interactions.py"
-    }
+    { "src": "/api/interactions", "dest": "api/interactions.py" },
+    { "src": "/api/cron_evening", "dest": "api/cron_evening.py" },
+    { "src": "/api/cron_daily",   "dest": "api/cron_daily.py" }
+  ],
+  "crons": [
+    { "path": "/api/cron_evening", "schedule": "0 13 * * *" },
+    { "path": "/api/cron_daily",   "schedule": "59 14 * * *" }
   ]
 }
