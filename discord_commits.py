@@ -35,12 +35,16 @@ def get_commit_counts(date: str) -> dict[str, int]:
     last_id = _snowflake(day_start)
 
     while True:
-        resp = requests.get(
-            f"https://discord.com/api/v10/channels/{channel_id}/messages",
-            headers=headers,
-            params={"limit": 100, "after": last_id},
-            timeout=10,
-        )
+        try:
+            resp = requests.get(
+                f"https://discord.com/api/v10/channels/{channel_id}/messages",
+                headers=headers,
+                params={"limit": 100, "after": last_id},
+                timeout=2,
+            )
+        except Exception as e:
+            print(f"[discord_commits] request failed: {e}")
+            return counts
         if not resp.ok:
             print(f"[discord_commits] Discord API error {resp.status_code}: {resp.text}")
             return counts

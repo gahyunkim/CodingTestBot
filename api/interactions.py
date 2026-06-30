@@ -233,7 +233,12 @@ def cmd_오늘현황(interaction: dict) -> dict:
     if not users:
         return respond([embed("📅 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    results = dc.get_user_results(today, users) if dc else [(u[0], u[1], 0) for u in users]
+    try:
+        results = dc.get_user_results(today, users) if dc else []
+    except Exception as e:
+        print(f"[오늘현황] dc error: {e}")
+        results = []
+    results = results or [(u[0], u[1], 0) for u in users]
     results.sort(key=lambda x: x[2], reverse=True)
     rows = [
         f"{'✅' if cnt >= gh.MIN_COMMITS else '❌'} <@{did}> `{gh_name}` — {cnt}개"
@@ -279,7 +284,11 @@ def cmd_강제집계(interaction: dict) -> dict:
     if not users:
         return respond([embed("ℹ️ 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
 
-    results = dc.get_user_results(date, users) if dc else [(u[0], u[1], 0) for u in users]
+    try:
+        results = dc.get_user_results(date, users) if dc else []
+    except Exception as e:
+        print(f"[강제집계] dc error: {e}")
+        results = [(u[0], u[1], 0) for u in users]
 
     fine_list, safe_list = [], []
     for discord_id, github_username, count in results:
