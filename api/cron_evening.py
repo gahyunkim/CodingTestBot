@@ -13,7 +13,8 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 
 import database as db
-import github_api as gh
+import discord_commits as dc
+import github_api as gh  # MIN_COMMITS 상수 재사용
 
 load_dotenv()
 
@@ -35,8 +36,7 @@ def cron():
     if not users:
         return jsonify({"ok": True, "message": "no users"})
 
-    user_tokens = db.get_user_tokens()
-    results = gh.check_all_users(users, db.get_repos, today, user_tokens=user_tokens)
+    results = dc.get_user_results(today, users)
     results.sort(key=lambda x: x[2], reverse=True)
 
     short_list = [(did, gh_name, cnt) for did, gh_name, cnt in results if cnt < gh.MIN_COMMITS]

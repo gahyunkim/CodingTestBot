@@ -12,7 +12,8 @@ import requests
 from dotenv import load_dotenv
 
 import database as db
-import github_api as gh
+import discord_commits as dc
+import github_api as gh  # MIN_COMMITS 상수 재사용
 
 load_dotenv()
 
@@ -27,8 +28,7 @@ def run(date: str) -> None:
         print("등록된 사용자 없음, 종료")
         return
 
-    user_tokens = db.get_user_tokens()
-    results = gh.check_all_users(users, db.get_repos, date, user_tokens=user_tokens)
+    results = dc.get_user_results(date, users)
 
     fine_list, safe_list = [], []
     for discord_id, github_username, count in results:
