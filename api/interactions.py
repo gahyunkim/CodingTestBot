@@ -14,8 +14,12 @@ from nacl.exceptions import BadSignatureError
 from nacl.signing import VerifyKey
 
 import database as db
-import discord_commits as dc
 import github_api as gh  # MIN_COMMITS 상수 재사용
+try:
+    import discord_commits as dc
+except Exception as e:
+    print(f"[interactions] discord_commits import error: {e}")
+    dc = None
 
 load_dotenv()
 
@@ -210,7 +214,7 @@ def cmd_내정보(interaction: dict) -> dict:
         return respond([embed("❌ 미등록", "`/등록 <GitHub 아이디>`로 먼저 등록해주세요.", color=0xFF6B6B)], ephemeral=True)
     github_username = row["github_username"]
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    count = dc.get_commit_counts(today).get(github_username, 0)
+    count = (dc.get_commit_counts(today) if dc else {}).get(github_username, 0)
     total_fine = db.get_total_fine(user_id)
     status = "✅ 달성" if count >= gh.MIN_COMMITS else f"❌ {gh.MIN_COMMITS - count}개 부족"
     return respond([embed(
@@ -229,7 +233,7 @@ def cmd_오늘현황(interaction: dict) -> dict:
     if not users:
         return respond([embed("📅 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    results = dc.get_user_results(today, users)
+    results = dc.get_user_results(today, users) if dc else [(u[0], u[1], 0) for u in users]
     results.sort(key=lambda x: x[2], reverse=True)
     rows = [
         f"{'✅' if cnt >= gh.MIN_COMMITS else '❌'} <@{did}> `{gh_name}` — {cnt}개"
@@ -275,7 +279,7 @@ def cmd_강제집계(interaction: dict) -> dict:
     if not users:
         return respond([embed("ℹ️ 등록된 사용자 없음", color=0xFF6B6B)], ephemeral=True)
 
-    results = dc.get_user_results(date, users)
+    results = dc.get_user_results(date, users) if dc else [(u[0], u[1], 0) for u in users]
 
     fine_list, safe_list = [], []
     for discord_id, github_username, count in results:

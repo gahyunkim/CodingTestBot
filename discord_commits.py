@@ -41,7 +41,9 @@ def get_commit_counts(date: str) -> dict[str, int]:
             params={"limit": 100, "after": last_id},
             timeout=10,
         )
-        resp.raise_for_status()
+        if not resp.ok:
+            print(f"[discord_commits] Discord API error {resp.status_code}: {resp.text}")
+            return counts
         messages: list[dict] = resp.json()
         if not messages:
             break
