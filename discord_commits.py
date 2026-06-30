@@ -53,27 +53,29 @@ def get_commit_counts(date: str) -> dict[str, int]:
             break
 
         for msg in messages:
+            # GitHub 웹훅 메시지만 처리
             if not msg.get("webhook_id"):
+                continue
+            if msg.get("author", {}).get("username") != "GitHub":
                 continue
 
             msg_time = datetime.fromisoformat(msg["timestamp"].replace("Z", "+00:00"))
             if msg_time > day_end:
                 return counts
 
-            # 메시지 형식:
-            #   [repo:branch] N new commit(s)
-            #   SHA commit message - author
-            #   SHA commit message - author
-            lines = msg.get("content", "").split("\n")
-            for line in lines[1:]:
-                line = line.strip()
-                if not line:
-                    continue
-                idx = line.rfind(" - ")
-                if idx != -1:
-                    author = line[idx + 3:].strip()
-                    if author:
-                        counts[author] = counts.get(author, 0) + 1
+            # Discord GitHub 통합은 embed의 description에 커밋 목록을 넣음
+            # 형식: [`SHA`](url) commit message - author
+            for embed in msg.get("embeds", []):
+                description = embed.get("description", "")
+                for line in description.split("\n"):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    idx = line.rfind(" - ")
+                    if idx != -1:
+                        author = line[idx + 3:].strip()
+                        if author:
+                            counts[author] = counts.get(author, 0) + 1
 
         if len(messages) < 100:
             break
