@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -32,7 +32,10 @@ def cron():
     if secret and auth != f"Bearer {secret}":
         return jsonify({"error": "Unauthorized"}), 401
 
-    date = request.args.get("date") or datetime.now(KST).strftime("%Y-%m-%d")
+    now = datetime.now(KST)
+    # cron이 지연돼 자정을 넘겨 실행됐을 경우 전날 날짜 사용
+    default_date = (now - timedelta(days=1)).strftime("%Y-%m-%d") if now.hour < 6 else now.strftime("%Y-%m-%d")
+    date = request.args.get("date") or default_date
     users = db.get_all_users()
     if not users:
         return jsonify({"ok": True, "message": "no users"})

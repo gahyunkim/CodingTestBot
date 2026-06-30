@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -23,7 +23,7 @@ KST = ZoneInfo("Asia/Seoul")
 
 def run() -> None:
     now = datetime.now(KST)
-    today = now.strftime("%Y-%m-%d")
+    today = (now - timedelta(days=1)).strftime("%Y-%m-%d") if now.hour < 6 else now.strftime("%Y-%m-%d")
 
     users = db.get_all_users()
     if not users:
