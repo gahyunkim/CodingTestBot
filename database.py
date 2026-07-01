@@ -112,3 +112,18 @@ def get_user_tokens() -> dict[str, str | None]:
     """전체 유저의 {discord_id: github_token} 반환."""
     res = _db().table("users").select("discord_id, github_token").execute()
     return {r["discord_id"]: r.get("github_token") for r in (res.data or [])}
+
+
+def is_cron_done(cron_type: str, date: str) -> bool:
+    try:
+        res = _db().table("cron_log").select("cron_type").eq("cron_type", cron_type).eq("target_date", date).execute()
+        return len(res.data or []) > 0
+    except Exception:
+        return False
+
+
+def mark_cron_done(cron_type: str, date: str) -> None:
+    try:
+        _db().table("cron_log").upsert({"cron_type": cron_type, "target_date": date}).execute()
+    except Exception:
+        pass

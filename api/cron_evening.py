@@ -32,8 +32,11 @@ def cron():
         return jsonify({"error": "Unauthorized"}), 401
 
     now = datetime.now(KST)
-    # cron이 지연돼 자정을 넘겨 실행됐을 경우 전날 날짜 사용
-    today = (now - timedelta(days=1)).strftime("%Y-%m-%d") if now.hour < 6 else now.strftime("%Y-%m-%d")
+    today = (now - timedelta(days=1)).strftime("%Y-%m-%d") if now.hour < 2 else now.strftime("%Y-%m-%d")
+
+    if db.is_cron_done("evening", today):
+        return jsonify({"ok": True, "message": f"already sent for {today}"})
+
     users = db.get_all_users()
     if not users:
         return jsonify({"ok": True, "message": "no users"})
@@ -73,4 +76,5 @@ def cron():
         timeout=10,
     )
     resp.raise_for_status()
+    db.mark_cron_done("evening", today)
     return jsonify({"ok": True, "short": len(short_list), "done": len(done_list)})
