@@ -1,8 +1,6 @@
 name: Daily Commit Check
 
 on:
-  schedule:
-    - cron: '59 14 * * *'  # 23:59 KST (UTC+9) = 14:59 UTC
   workflow_dispatch:
     inputs:
       date:
