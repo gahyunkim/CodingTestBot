@@ -41,7 +41,7 @@ def cron():
     if not users:
         return jsonify({"ok": True, "message": "no users"})
 
-    results = dc.get_user_results(today, users)
+    results = dc.get_user_results(today, users, timeout=10)
     results.sort(key=lambda x: x[2], reverse=True)
 
     short_list = [(did, gh_name, cnt) for did, gh_name, cnt in results if cnt < gh.MIN_COMMITS]

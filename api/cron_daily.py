@@ -43,7 +43,7 @@ def cron():
     if not users:
         return jsonify({"ok": True, "message": "no users"})
 
-    results = dc.get_user_results(date, users)
+    results = dc.get_user_results(date, users, timeout=10)
 
     fine_list, safe_list = [], []
     for discord_id, github_username, count in results:

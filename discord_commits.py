@@ -15,7 +15,7 @@ def _snowflake(dt: datetime) -> str:
     return str(max(ms, 0) << 22)
 
 
-def get_commit_counts(date: str) -> dict[str, int]:
+def get_commit_counts(date: str, timeout: int = 2) -> dict[str, int]:
     """
     date(YYYY-MM-DD, KST 기준) 에 채널에 올라온 GitHub 웹훅 메시지를 파싱해
     {github_username: commit_count} 반환.
@@ -40,7 +40,7 @@ def get_commit_counts(date: str) -> dict[str, int]:
                 f"https://discord.com/api/v10/channels/{channel_id}/messages",
                 headers=headers,
                 params={"limit": 100, "after": last_id},
-                timeout=2,
+                timeout=timeout,
             )
         except Exception as e:
             print(f"[discord_commits] request failed: {e}")
@@ -84,9 +84,9 @@ def get_commit_counts(date: str) -> dict[str, int]:
     return counts
 
 
-def get_user_results(date: str, users: list) -> list[tuple[str, str, int]]:
+def get_user_results(date: str, users: list, timeout: int = 2) -> list[tuple[str, str, int]]:
     """[(discord_id, github_username, commit_count)] 반환."""
-    counts = get_commit_counts(date)
+    counts = get_commit_counts(date, timeout=timeout)
     return [
         (discord_id, github_username, counts.get(github_username, 0))
         for discord_id, github_username, *_ in users
