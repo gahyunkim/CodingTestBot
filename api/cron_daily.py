@@ -15,6 +15,7 @@ from flask import Flask, jsonify, request
 import database as db
 import discord_commits as dc
 import github_api as gh  # MIN_COMMITS 상수 재사용
+import messages as msg
 
 load_dotenv()
 
@@ -79,7 +80,7 @@ def cron():
     if safe_list:
         embed["fields"].append({
             "name": "🌟 오늘의 생존자",
-            "value": "\n".join(f"✅ <@{did}> `{gh_name}` — {cnt}개 완료 🔥" for did, gh_name, cnt in safe_list),
+            "value": "\n".join(msg.done_line(did, gh_name, cnt) for did, gh_name, cnt in safe_list),
             "inline": False,
         })
     if fine_list:

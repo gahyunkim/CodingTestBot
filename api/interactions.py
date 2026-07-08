@@ -15,6 +15,7 @@ from nacl.signing import VerifyKey
 
 import database as db
 import github_api as gh  # MIN_COMMITS 상수 재사용
+import messages as msg
 try:
     import discord_commits as dc
 except Exception as e:
@@ -257,10 +258,9 @@ def cmd_오늘현황(interaction: dict) -> dict:
     rows = []
     for did, gh_name, cnt in results:
         if cnt >= gh.MIN_COMMITS:
-            rows.append(f"✅ <@{did}> `{gh_name}` — {cnt}개 🔥")
+            rows.append(msg.done_line(did, gh_name, cnt))
         else:
-            remaining = gh.MIN_COMMITS - cnt
-            rows.append(f"❌ <@{did}> `{gh_name}` — {cnt}개 (앞으로 {remaining}개!!)")
+            rows.append(msg.short_line(did, gh_name, cnt, gh.MIN_COMMITS))
 
     return respond([embed(title, "\n".join(rows), color=color)])
 
@@ -458,7 +458,7 @@ def _build_daily_embed(date: str, fine_list: list, safe_list: list) -> dict:
     if safe_list:
         fields.append({
             "name": "🌟 오늘의 생존자",
-            "value": "\n".join(f"✅ <@{did}> `{gh_name}` — {cnt}개 완료 🔥" for did, gh_name, cnt in safe_list),
+            "value": "\n".join(msg.done_line(did, gh_name, cnt) for did, gh_name, cnt in safe_list),
             "inline": False,
         })
     if fine_list:

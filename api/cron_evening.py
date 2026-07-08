@@ -15,6 +15,7 @@ from flask import Flask, jsonify, request
 import database as db
 import discord_commits as dc
 import github_api as gh  # MIN_COMMITS 상수 재사용
+import messages as msg
 
 load_dotenv()
 
@@ -55,16 +56,15 @@ def cron():
         else:
             rows.append(f"{mentions} 저기요... 혹시 오늘 커밋 잊으신 거 아닌가요? 🙄 자정까지 **2시간** 남았어요 얼른요!!\n")
         for did, gh_name, cnt in short_list:
-            remaining = gh.MIN_COMMITS - cnt
-            rows.append(f"😱 <@{did}> `{gh_name}` — {cnt}개 완료 (아직 **{remaining}개** 더 해야 해요!!)")
+            rows.append(msg.short_line(did, gh_name, cnt, gh.MIN_COMMITS))
     else:
         rows.append("세상에… 다들 미리 다 하셨어요?? 😭✨ 오늘 전원 조기 달성!! 이런 날도 있군요!!\n")
 
     if done_list:
         if short_list:
-            rows.append("\n이미 끝내신 분들 👏")
+            rows.append("\n이미 끝내신 분들 👏👏")
         for did, gh_name, cnt in done_list:
-            rows.append(f"✅ <@{did}> `{gh_name}` — {cnt}개 🔥")
+            rows.append(msg.done_line(did, gh_name, cnt))
 
     color = 0xFF4500 if short_list else 0x51CF66
     title = "🚨 자정까지 2시간!! 아직 안 끝난 분 있어요!!" if short_list else "🎊 오늘도 전원 달성!! 완벽해요!!"
