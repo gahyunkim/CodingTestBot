@@ -50,6 +50,11 @@ _ULTRA_GENERIC = [
 ]
 
 
+_PREFIX_BASE  = "와! "
+_PREFIX_HYPE  = "와!!!!!!!!!! 미쳤다! 돌았다! 와!!!!\n"
+_PREFIX_ULTRA = "여기요!!!!! 게더 사람들!!!!!!!!!!!!!!!!!!!! {이름}가 미쳤어요!!!!!!!! 코테의 신이 되려나봐요!!!!!!!!\n"
+
+
 def _fmt(template: str, n: int, github_username: str) -> str:
     이름, 기업 = _PEOPLE.get(github_username, ("", ""))
     return (template
@@ -61,12 +66,15 @@ def _fmt(template: str, n: int, github_username: str) -> str:
 def praise_line(github_username: str, commit_count: int) -> str:
     n = commit_count
     if n >= 10:
+        prefix = _PREFIX_ULTRA
         pool = _ULTRA if github_username in _PEOPLE else _ULTRA_GENERIC
     elif n >= 5:
+        prefix = _PREFIX_HYPE
         pool = _HYPE if github_username in _PEOPLE else _HYPE_GENERIC
     else:
+        prefix = _PREFIX_BASE
         pool = _BASE if github_username in _PEOPLE else _BASE_GENERIC
-    return _fmt(random.choice(pool), n, github_username)
+    return _fmt(prefix + random.choice(pool), n, github_username)
 
 
 def company_of(github_username: str) -> str:
