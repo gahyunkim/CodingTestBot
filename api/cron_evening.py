@@ -50,23 +50,29 @@ def cron():
     rows = []
     if short_list:
         mentions = " ".join(f"<@{did}>" for did, _, _ in short_list)
-        rows.append(f"**{mentions}** 아직 목표 미달이에요! 자정까지 2시간 남았습니다.\n")
+        if len(short_list) == len(results):
+            rows.append(f"아니 {mentions} 다들 지금 뭐하고 계신 거예요?? 😤 자정까지 **2시간** 밖에 안 남았다고요!!\n")
+        else:
+            rows.append(f"{mentions} 저기요... 혹시 오늘 커밋 잊으신 거 아닌가요? 🙄 자정까지 **2시간** 남았어요 얼른요!!\n")
         for did, gh_name, cnt in short_list:
-            rows.append(f"❌ <@{did}> `{gh_name}` — {cnt}/{gh.MIN_COMMITS}개")
+            remaining = gh.MIN_COMMITS - cnt
+            rows.append(f"😱 <@{did}> `{gh_name}` — {cnt}개 완료 (아직 **{remaining}개** 더 해야 해요!!)")
     else:
-        rows.append("🎉 오늘은 모든 멤버가 목표를 달성했어요!")
+        rows.append("세상에… 다들 미리 다 하셨어요?? 😭✨ 오늘 전원 조기 달성!! 이런 날도 있군요!!\n")
 
     if done_list:
-        rows.append("")
+        if short_list:
+            rows.append("\n이미 끝내신 분들 👏")
         for did, gh_name, cnt in done_list:
-            rows.append(f"✅ <@{did}> `{gh_name}` — {cnt}개")
+            rows.append(f"✅ <@{did}> `{gh_name}` — {cnt}개 🔥")
 
-    color = 0xFF9500 if short_list else 0x51CF66
+    color = 0xFF4500 if short_list else 0x51CF66
+    title = "🚨 자정까지 2시간!! 아직 안 끝난 분 있어요!!" if short_list else "🎊 오늘도 전원 달성!! 완벽해요!!"
     embed = {
-        "title": "⏰ 22:00 커밋 현황",
+        "title": title,
         "description": "\n".join(rows),
         "color": color,
-        "footer": {"text": f"자정 집계까지 2시간 남았습니다 ({today})"},
+        "footer": {"text": f"자정 집계까지 2시간 남았습니다 • {today}"},
     }
 
     resp = requests.post(

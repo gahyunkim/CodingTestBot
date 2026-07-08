@@ -56,23 +56,37 @@ def cron():
         else:
             safe_list.append((discord_id, github_username, count))
 
+    if fine_list and safe_list:
+        title = f"😬 {date} 결산 — 희비가 엇갈렸습니다"
+        color = 0xFF6B6B
+        desc = "살아남은 자와 그렇지 못한 자… 오늘의 결과를 발표합니다."
+    elif fine_list:
+        title = f"💀 {date} 결산 — 오늘의 희생자 발표"
+        color = 0xCC0000
+        desc = "결국… 도망치지 못하셨군요. 벌금을 받아가세요. 😈"
+    else:
+        title = f"🏆 {date} 결산 — 전원 클리어!!"
+        color = 0x51CF66
+        desc = "믿을 수가 없어요… 오늘 **전원이 해냈습니다!!** 🥲🎉 이게 가능한 일이에요??"
+
     embed = {
-        "title": f"📊 {date} 일일 커밋 결산",
-        "color": 0xFF6B6B if fine_list else 0x51CF66,
+        "title": title,
+        "description": desc,
+        "color": color,
         "fields": [],
-        "footer": {"text": f"하루 최소 {gh.MIN_COMMITS}개 커밋 목표"},
+        "footer": {"text": f"하루 최소 {gh.MIN_COMMITS}개 커밋 목표 • {date}"},
     }
     if safe_list:
         embed["fields"].append({
-            "name": "목표 달성 🎉",
-            "value": "\n".join(f"✅ <@{did}> `{gh_name}` — {cnt}개" for did, gh_name, cnt in safe_list),
+            "name": "🌟 오늘의 생존자",
+            "value": "\n".join(f"✅ <@{did}> `{gh_name}` — {cnt}개 완료 🔥" for did, gh_name, cnt in safe_list),
             "inline": False,
         })
     if fine_list:
         embed["fields"].append({
-            "name": f"벌금 {FINE_AMOUNT:,}원 💸",
+            "name": f"💸 오늘의 희생자 (벌금 {FINE_AMOUNT:,}원)",
             "value": "\n".join(
-                f"❌ <@{did}> `{gh_name}` — {cnt}개 → 벌금 {FINE_AMOUNT:,}원"
+                f"❌ <@{did}> `{gh_name}` — {cnt}개... → {FINE_AMOUNT:,}원 ㅠㅠ"
                 for did, gh_name, cnt in fine_list
             ),
             "inline": False,

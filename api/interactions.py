@@ -240,11 +240,29 @@ def cmd_오늘현황(interaction: dict) -> dict:
         results = []
     results = results or [(u[0], u[1], 0) for u in users]
     results.sort(key=lambda x: x[2], reverse=True)
-    rows = [
-        f"{'✅' if cnt >= gh.MIN_COMMITS else '❌'} <@{did}> `{gh_name}` — {cnt}개"
-        for did, gh_name, cnt in results
-    ]
-    return respond([embed(f"📅 {today} 커밋 현황", "\n".join(rows), color=0x339AF0)])
+
+    done = [r for r in results if r[2] >= gh.MIN_COMMITS]
+    short = [r for r in results if r[2] < gh.MIN_COMMITS]
+
+    if not short:
+        title = "🏅 오늘 현황 — 현재까지 전원 달성 중!"
+        color = 0x51CF66
+    elif not done:
+        title = "😰 오늘 현황 — 아직 아무도 못 했어요..."
+        color = 0xFF4500
+    else:
+        title = f"📊 오늘 현황 — {len(done)}명 달성 / {len(short)}명 분발 필요"
+        color = 0xFFD43B
+
+    rows = []
+    for did, gh_name, cnt in results:
+        if cnt >= gh.MIN_COMMITS:
+            rows.append(f"✅ <@{did}> `{gh_name}` — {cnt}개 🔥")
+        else:
+            remaining = gh.MIN_COMMITS - cnt
+            rows.append(f"❌ <@{did}> `{gh_name}` — {cnt}개 (앞으로 {remaining}개!!)")
+
+    return respond([embed(title, "\n".join(rows), color=color)])
 
 
 def cmd_벌금(interaction: dict) -> dict:
@@ -423,26 +441,39 @@ def cmd_도움말(interaction: dict) -> dict:
 
 
 def _build_daily_embed(date: str, fine_list: list, safe_list: list) -> dict:
-    color = 0xFF6B6B if fine_list else 0x51CF66
+    if fine_list and safe_list:
+        title = f"😬 {date} 결산 — 희비가 엇갈렸습니다"
+        color = 0xFF6B6B
+        desc = "살아남은 자와 그렇지 못한 자… 오늘의 결과를 발표합니다."
+    elif fine_list:
+        title = f"💀 {date} 결산 — 오늘의 희생자 발표"
+        color = 0xCC0000
+        desc = "결국… 도망치지 못하셨군요. 벌금을 받아가세요. 😈"
+    else:
+        title = f"🏆 {date} 결산 — 전원 클리어!!"
+        color = 0x51CF66
+        desc = "믿을 수가 없어요… 오늘 **전원이 해냈습니다!!** 🥲🎉 이게 가능한 일이에요??"
+
     fields = []
     if safe_list:
         fields.append({
-            "name": "목표 달성 🎉",
-            "value": "\n".join(f"✅ <@{did}> `{gh_name}` — {cnt}개" for did, gh_name, cnt in safe_list),
+            "name": "🌟 오늘의 생존자",
+            "value": "\n".join(f"✅ <@{did}> `{gh_name}` — {cnt}개 완료 🔥" for did, gh_name, cnt in safe_list),
             "inline": False,
         })
     if fine_list:
         fields.append({
-            "name": f"벌금 {FINE_AMOUNT:,}원 💸",
+            "name": f"💸 오늘의 희생자 (벌금 {FINE_AMOUNT:,}원)",
             "value": "\n".join(
-                f"❌ <@{did}> `{gh_name}` — {cnt}개 → 벌금 {FINE_AMOUNT:,}원"
+                f"❌ <@{did}> `{gh_name}` — {cnt}개... → {FINE_AMOUNT:,}원 ㅠㅠ"
                 for did, gh_name, cnt in fine_list
             ),
             "inline": False,
         })
     return {
-        "title": f"📊 {date} 일일 커밋 결산",
+        "title": title,
+        "description": desc,
         "color": color,
         "fields": fields,
-        "footer": {"text": f"하루 최소 {gh.MIN_COMMITS}개 커밋 목표"},
+        "footer": {"text": f"하루 최소 {gh.MIN_COMMITS}개 커밋 목표 • {date}"},
     }
