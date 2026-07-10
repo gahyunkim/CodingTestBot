@@ -20,7 +20,7 @@
     { "src": "/api/cron_daily",   "dest": "api/cron_daily.py" }
   ],
   "crons": [
-    { "path": "/api/cron_evening", "schedule": "22 12 * * *" },
-    { "path": "/api/cron_daily",   "schedule": "0 14 * * *" }
+    { "path": "/api/cron_evening", "schedule": "2 13 * * *" },
+    { "path": "/api/cron_daily",   "schedule": "40 14 * * *" }
   ]
 }
