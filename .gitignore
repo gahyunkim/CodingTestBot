@@ -25,3 +25,4 @@ env/
 # 배포용 압축파일
 bot.zip
 .vercel
+.env*.local

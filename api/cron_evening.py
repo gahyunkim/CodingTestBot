@@ -35,9 +35,6 @@ def cron():
     now = datetime.now(KST)
     today = (now - timedelta(days=1)).strftime("%Y-%m-%d") if now.hour < 2 else now.strftime("%Y-%m-%d")
 
-    if db.is_cron_done("evening", today):
-        return jsonify({"ok": True, "message": f"already sent for {today}"})
-
     users = db.get_all_users()
     if not users:
         return jsonify({"ok": True, "message": "no users"})
@@ -63,8 +60,9 @@ def cron():
     if done_list:
         if short_list:
             rows.append("\n이미 끝내신 분들 👏👏")
+        used_msgs: set = set()
         for did, gh_name, cnt in done_list:
-            rows.append(msg.done_line(did, gh_name, cnt))
+            rows.append(msg.done_line(did, gh_name, cnt, used=used_msgs))
 
     color = 0xFF4500 if short_list else 0x51CF66
     title = "🚨 자정까지 2시간!! 아직 안 끝난 분 있어요!!" if short_list else "🎊 오늘도 전원 달성!! 완벽해요!!"
@@ -82,5 +80,4 @@ def cron():
         timeout=10,
     )
     resp.raise_for_status()
-    db.mark_cron_done("evening", today)
     return jsonify({"ok": True, "short": len(short_list), "done": len(done_list)})

@@ -255,10 +255,11 @@ def cmd_오늘현황(interaction: dict) -> dict:
         title = f"📊 오늘 현황 — {len(done)}명 달성 / {len(short)}명 분발 필요"
         color = 0xFFD43B
 
+    used_msgs: set = set()
     rows = []
     for did, gh_name, cnt in results:
         if cnt >= gh.MIN_COMMITS:
-            rows.append(msg.done_line(did, gh_name, cnt))
+            rows.append(msg.done_line(did, gh_name, cnt, used=used_msgs))
         else:
             rows.append(msg.short_line(did, gh_name, cnt, gh.MIN_COMMITS))
 
@@ -454,11 +455,12 @@ def _build_daily_embed(date: str, fine_list: list, safe_list: list) -> dict:
         color = 0x51CF66
         desc = "믿을 수가 없어요… 오늘 **전원이 해냈습니다!!** 🥲🎉 이게 가능한 일이에요??"
 
+    used_msgs: set = set()
     fields = []
     if safe_list:
         fields.append({
             "name": "🌟 오늘의 생존자",
-            "value": "\n".join(msg.done_line(did, gh_name, cnt) for did, gh_name, cnt in safe_list),
+            "value": "\n".join(msg.done_line(did, gh_name, cnt, used=used_msgs) for did, gh_name, cnt in safe_list),
             "inline": False,
         })
     if fine_list:
@@ -470,6 +472,11 @@ def _build_daily_embed(date: str, fine_list: list, safe_list: list) -> dict:
             ),
             "inline": False,
         })
+    all_results = safe_list + fine_list
+    rank = msg.rank_line(all_results)
+    if rank:
+        fields.append({"name": "⚔️ 오늘의 순위", "value": rank, "inline": False})
+
     return {
         "title": title,
         "description": desc,

@@ -37,9 +37,6 @@ def cron():
     default_date = (now - timedelta(days=1)).strftime("%Y-%m-%d") if now.hour < 2 else now.strftime("%Y-%m-%d")
     date = request.args.get("date") or default_date
 
-    if not request.args.get("date") and db.is_cron_done("daily", date):
-        return jsonify({"ok": True, "message": f"already processed {date}"})
-
     users = db.get_all_users()
     if not users:
         return jsonify({"ok": True, "message": "no users"})
@@ -77,10 +74,11 @@ def cron():
         "fields": [],
         "footer": {"text": f"하루 최소 {gh.MIN_COMMITS}개 커밋 목표 • {date}"},
     }
+    used_msgs: set = set()
     if safe_list:
         embed["fields"].append({
             "name": "🌟 오늘의 생존자",
-            "value": "\n".join(msg.done_line(did, gh_name, cnt) for did, gh_name, cnt in safe_list),
+            "value": "\n".join(msg.done_line(did, gh_name, cnt, used=used_msgs) for did, gh_name, cnt in safe_list),
             "inline": False,
         })
     if fine_list:
@@ -92,6 +90,9 @@ def cron():
             ),
             "inline": False,
         })
+    rank = msg.rank_line(safe_list + fine_list)
+    if rank:
+        embed["fields"].append({"name": "⚔️ 오늘의 순위", "value": rank, "inline": False})
 
     resp = requests.post(
         DISCORD_WEBHOOK_URL,
@@ -100,6 +101,4 @@ def cron():
         timeout=10,
     )
     resp.raise_for_status()
-    if not request.args.get("date"):
-        db.mark_cron_done("daily", date)
     return jsonify({"ok": True, "fined": len(fine_list), "safe": len(safe_list)})
