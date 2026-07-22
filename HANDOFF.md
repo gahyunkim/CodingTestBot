@@ -10,7 +10,7 @@
 
 - **상시 프로세스 없음**: 슬래시 커맨드는 Vercel Serverless, 일일 집계는 Vercel Cron
 - **커밋 집계 방식**: GitHub API 직접 호출 X → **Discord 채널에 올라온 GitHub 웹훅 메시지 파싱**으로 집계 (GitHub PAT 토큰 불필요)
-- **멤버**: 백승주(`Byesol`) 목표 회사 현대오토에버, 김가현(`gahyunkim`) 목표 회사 현대모비스
+- **멤버**: 백승주(`Byesol`) 목표 회사 현대오토에버, 김가현(`gahyunkim`) 목표 회사 현대오토에버
 
 ---
 
@@ -173,7 +173,7 @@ date = (now - timedelta(days=1)).strftime("%Y-%m-%d") if now.hour < 2 else now.s
 ```python
 _PEOPLE = {
     "Byesol":    ("백승주씨", "현대오토에버"),
-    "gahyunkim": ("김가현씨", "현대모비스"),
+    "gahyunkim": ("김가현씨", "현대오토에버"),
 }
 ```
 
@@ -186,7 +186,7 @@ _PEOPLE = {
 메시지 템플릿 내 플레이스홀더:
 - `{n}` → 커밋 수
 - `{이름}` → `백승주씨` 또는 `김가현씨`
-- `{기업}` → `현대오토에버` 또는 `현대모비스`
+- `{기업}` → `현대오토에버`
 
 **멤버 추가 방법**: `_PEOPLE` dict에 `"github_username": ("실명씨", "목표회사")` 추가 후 `_BASE`, `_HYPE`, `_ULTRA`에 해당 유저용 메시지 추가.
 
